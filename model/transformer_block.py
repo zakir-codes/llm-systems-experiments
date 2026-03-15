@@ -30,7 +30,7 @@ class Block(nn.Module):
         self.ln1 = nn.LayerNorm(n_embed)
         self.ln2 = nn.LayerNorm(n_embed)
 
-    def forward(self,x):
-        x = x + self.multi_head(self.ln1(x))
+    def forward(self,x, kv_cache=None):
+        x = x + self.multi_head(self.ln1(x), kv_cache=kv_cache)
         x = x + self.ff(self.ln2(x))
         return x
