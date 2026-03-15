@@ -23,9 +23,9 @@ class FeedForward(nn.Module):
     
 class Block(nn.Module):
     """Transformer block"""
-    def __init__(self, n_head, n_embed, dropout,time):
+    def __init__(self, n_head, n_embed, dropout, block_size, layer_idx=None):
         super().__init__()
-        self.multi_head = MultiHead(n_head, n_embed, dropout,time)
+        self.multi_head = MultiHead(n_head, n_embed, dropout, block_size, layer_idx, kv_cache)
         self.ff = FeedForward(n_embed, dropout)
         self.ln1 = nn.LayerNorm(n_embed)
         self.ln2 = nn.LayerNorm(n_embed)
