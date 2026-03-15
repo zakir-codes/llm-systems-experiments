@@ -9,60 +9,52 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Head(nn.Module):
-    """One head of causal self-attention"""
-
-    def __init__(
-        self, n_embed, head_size, dropout, block_size, layer_idx=None
-    ):
-        super().__init__()
-
-        self.query = nn.Linear(n_embed, head_size, bias=False)
-        self.key = nn.Linear(n_embed, head_size, bias=False)
-        self.value = nn.Linear(n_embed, head_size, bias=False)
-        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size)).view(1,1,block_size,block_size))
-        self.dropout = nn.Dropout(dropout)
-        self.layer_idx = layer_idx
-
-    def forward(self, x, kv_cache=None):
-
-        Q = self.query(x)
-        K = self.key(x)
-        V = self.value(x)
-
-        Tq, Tk = Q.shape[-2], K.shape[-2]
-
-        if kv_cache is not None:
-            K, V = kv_cache.update(self.layer_idx, K, V)
-        output = Q @ K.transpose(-2, -1) / (math.sqrt(K.shape[-1]))  # attention score
-        output = output.masked_fill(self.mask[:Tq, :Tk] == 0, float("-inf"))
-        output = torch.softmax(output, dim=-1)
-        output = self.dropout(output)
-        output = output @ V
-        return output
-
-
 class MultiHead(nn.Module):
     """Multiple heads of self-attention"""
 
-    def __init__(
-        self, n_head, n_embed, dropout, block_size, layer_idx=None
-    ):
+    def __init__(self, n_head, n_embed, dropout, block_size, layer_idx=None):
         super().__init__()
-        head_size = n_embed // n_head
+        self.n_head = n_head
+        self.head_size = n_embed // n_head
+        self.layer_idx = layer_idx
 
-        self.heads = nn.ModuleList(
-            [
-                Head(n_embed, head_size, dropout, block_size, layer_idx, kv_cache)
-                for _ in range(n_head)
-            ]
-        )
-        self.project = nn.Linear(n_embed, n_embed)
+        self.qkv_proj = nn.Linear(n_embed, 3 * n_embed, bias=False)
+
+        self.out_proj = nn.Linear(n_embed, n_embed, bias=False)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, kv_cache=None):
+        self.register_buffer(
+            "mask",
+            torch.tril(torch.ones(block_size, block_size)).view(
+                1, 1, block_size, block_size
+            ),
+        )
 
-        output = torch.cat([h(x, kv_cache=kv_cache) for h in self.heads], dim=-1)
-        output = self.project(output)
+    def forward(self, x, kv_cache=None):
+        B, T, C = x.shape
+        qkv = self.qkv_proj(x)
+        Q, K, V = qkv.chunk(3, dim=-1)  # (3, B, T, n_head, head_size)
+
+        Q = Q.view(B, T, self.n_head, self.head_size).transpose(1, 2)
+        K = K.view(B, T, self.n_head, self.head_size).transpose(1, 2)
+        V = V.view(B, T, self.n_head, self.head_size).transpose(1, 2)
+
+        if kv_cache is not None:
+            K, V = kv_cache.update(self.layer_idx, K, V)
+
+        Tq, Tk = Q.shape[-2], K.shape[-2]
+
+        output = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(
+            self.head_size
+        )  # attention score
+        if kv_cache is None:
+            output = output.masked_fill(self.mask[:, :, :Tq, :Tk] == 0, float("-inf"))
+        output = torch.softmax(output, dim=-1)
         output = self.dropout(output)
+        output = torch.matmul(output, V)
+        output = output.transpose(1, 2).contiguous().view(B, T, C)
+
+        output = self.out_proj(output)
+        output = self.dropout(output)
+
         return output
