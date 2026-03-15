@@ -2,26 +2,33 @@
 
 import torch
 
+
 class KVCache:
     """Key-Value Cache for Transformer Models"""
-    def __init__(self):
-        self.cache = {}
 
-    def store(self, layer_idx, key, value):
-        """Store key and value for a given layer index"""
-        self.cache[layer_idx] = (key, value)
+    def __init__(self, max_seq_len, n_head, head_dim, batch_size, device):
+        self.key_cache = torch.zeros(
+            batch_size, n_head, max_seq_len, head_dim, device=device
+        )
+
+        self.value_cache = torch.zeros(
+            batch_size, n_head, max_seq_len, head_dim, device=device
+        )
+
+        self.pos = 0
 
     def update(self, layer_idx, key, value):
-        """Update key and value for a given layer index"""
-        if layer_idx in self.cache:
-            existing_key, existing_value = self.cache[layer_idx]
-            updated_key = torch.cat((existing_key, key), dim=1)
-            updated_value = torch.cat((existing_value, value), dim=1)
-            self.cache[layer_idx] = (updated_key, updated_value)
-        else:
-            self.store(layer_idx, key, value)
-        return self.cache[layer_idx]
+        T = key.size(2)
 
-    def retrieve(self, layer_idx):
-        """Retrieve key and value for a given layer index"""
-        return self.cache.get(layer_idx, (None, None))
+        self.key_cache[:, :, self.pos:self.pos + T] = key
+        self.value_cache[:, :, self.pos:self.pos + T] = value
+
+        self.pos += T
+
+        return (
+            self.key_cache[:, :, :self.pos],
+            self.value_cache[:, :, :self.pos],
+        )
+
+    def cache_length(self):
+        return self.pos

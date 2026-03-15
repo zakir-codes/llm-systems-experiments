@@ -1,0 +1,44 @@
+experiment:
+  name: baseline
+  seed: 42
+
+data:
+  dataset_path: artifacts/data/shakespeare.txt
+  train_split: 0.9
+
+tokenizer:
+  type: bpe
+  vocab_size: 5000
+  tokenizer_path: artifacts/tokenizers/bpe.json
+
+model:
+  vocab_size: 5000
+  block_size: 128
+  n_layer: 4
+  n_head: 4
+  n_embed: 256
+  dropout: 0.1
+
+training:
+  batch_size: 32
+  max_iters: 10
+  raw_text_budget: 20000000
+  learning_rate: 3e-4
+  weight_decay: 0.01
+
+systems:
+  amp: false
+  gradient_accumulation_steps: 1
+
+inference:
+  use_kv_cache: false
+  max_new_tokens: 200
+
+finetuning:
+  method: none
+
+logging:
+  log_interval: 50
+  eval_interval: 500
+  save_checkpoint_interval: 1000
+  output_dir: artifacts/models

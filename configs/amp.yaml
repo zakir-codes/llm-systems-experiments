@@ -1,0 +1,5 @@
+experiment:
+  name: amp_training
+
+systems:
+  amp: true

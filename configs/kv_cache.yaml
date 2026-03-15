@@ -1,0 +1,5 @@
+experiment:
+  name: kv_cache_inference
+
+inference:
+  use_kv_cache: true

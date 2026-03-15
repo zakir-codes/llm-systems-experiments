@@ -1,5 +1,7 @@
 """
 Multi-Head Attention Implementation
+
+Use PyTorch scaled dot-product attention (Flash Attention when available)
 """
 
 import math
@@ -42,16 +44,17 @@ class MultiHead(nn.Module):
         if kv_cache is not None:
             K, V = kv_cache.update(self.layer_idx, K, V)
 
-        Tq, Tk = Q.shape[-2], K.shape[-2]
+        # Tq, Tk = Q.shape[-2], K.shape[-2]
 
-        output = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(
-            self.head_size
-        )  # attention score
-        if kv_cache is None:
-            output = output.masked_fill(self.mask[:, :, :Tq, :Tk] == 0, float("-inf"))
-        output = torch.softmax(output, dim=-1)
-        output = self.dropout(output)
-        output = torch.matmul(output, V)
+        output = F.scaled_dot_product_attention(
+            Q,
+            K,
+            V,
+            # attn_mask=None if kv_cache is not None else self.mask[:, :, :Tq, :Tk],
+            dropout_p=self.dropout.p if self.training else 0.0,
+            is_causal=kv_cache is None,
+        )
+
         output = output.transpose(1, 2).contiguous().view(B, T, C)
 
         output = self.out_proj(output)

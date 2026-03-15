@@ -1,0 +1,4 @@
+experiment:
+  name: baseline_training
+  description: Standard GPT training without system optimizations
+  
