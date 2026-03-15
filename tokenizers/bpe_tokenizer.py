@@ -5,21 +5,30 @@ import os
 from tokenizers.base import BaseTokenizer
 import sentencepiece as spm
 
+
 class BPETokenizer(BaseTokenizer):
-    def __init__(self, model_file=None, input_file=None, model_prefix='bpe_tokenizer', vocab_size=8000):
+    def __init__(
+        self,
+        model_file=None,
+        input_file=None,
+        model_prefix="bpe_tokenizer",
+        vocab_size=8000,
+        output_dir="checkpoints/tokenizer",
+    ):
         self.sp = spm.SentencePieceProcessor()
+        self.output_dir = output_dir
+
         if model_file:
             self.sp.load(model_file)
         elif input_file:
             self._train(input_file, model_prefix, vocab_size)
         else:
             raise ValueError("Either model_file or input_file must be provided.")
-        
-    def _train(self, input_file, model_prefix, vocab_size=8000):
-        output_dir = "checkpoints/tokenizer"
-        os.makedirs(output_dir, exist_ok=True)
 
-        model_prefix_path = os.path.join(output_dir, model_prefix)
+    def _train(self, input_file, model_prefix, vocab_size=8000):
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        model_prefix_path = os.path.join(self.output_dir, model_prefix)
         model_file = f"{model_prefix_path}.model"
         vocab_file = f"{model_prefix_path}.vocab"
         # if files already exist, avoid retraining

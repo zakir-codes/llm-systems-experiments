@@ -86,10 +86,11 @@ def main():
     # ---------------- Dataset ----------------
 
     train_loader = get_dataloader(
-        file_path=config["data"]["train_file"],
+        file_path=config["data"]["dataset_path"],
         batch_size=config["training"]["batch_size"],
         block_size=config["model"]["block_size"],
         tokenizer_name=config["tokenizer"]["type"],
+        config=config,
     )
 
     # ---------------- Model ----------------
@@ -111,7 +112,7 @@ def main():
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=config["training"]["learning_rate"],
+        lr=float(config["training"]["learning_rate"]),
         weight_decay=config["training"]["weight_decay"],
     )
 

@@ -65,12 +65,41 @@ def get_dataloader(
     batch_size,
     block_size,
     tokenizer_name,
+    config,
 ):
     """
     Create DataLoader for training.
     """
 
-    tokenizer = load_tokenizer(tokenizer_name)
+    # Prepare tokenizer kwargs based on type and config
+    tokenizer_kwargs = {}
+    tokenizer_type = tokenizer_name
+
+    if tokenizer_type in ("char", "word"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        tokenizer_kwargs["text"] = text
+    elif tokenizer_type == "bpe":
+        tok_cfg = config["tokenizer"]
+        vocab_size = tok_cfg["vocab_size"]
+
+        # Derive output_dir and model_prefix from tokenizer_path in config
+        tokenizer_path = tok_cfg["tokenizer_path"]  # e.g. artifacts/tokenizers/bpe.model
+        output_dir, filename = os.path.split(tokenizer_path)
+        model_prefix, _ = os.path.splitext(filename)
+
+        tokenizer_kwargs.update(
+            dict(
+                input_file=file_path,
+                vocab_size=vocab_size,
+                model_prefix=model_prefix,
+                output_dir=output_dir,
+            )
+        )
+    else:
+        raise ValueError(f"Unknown tokenizer type: {tokenizer_type}")
+
+    tokenizer = load_tokenizer(tokenizer_type=tokenizer_type, **tokenizer_kwargs)
 
     tokens = load_or_create_tokens(file_path, tokenizer)
 
