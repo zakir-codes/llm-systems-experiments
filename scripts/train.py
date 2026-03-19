@@ -3,12 +3,15 @@ Training script for NanoGPT language model
 """
 
 import argparse
+import csv
+import json
 import os
-import time
 import random
-import numpy as np
+import time
 import torch
 import yaml
+
+import numpy as np
 
 from model.gpt_model import NanoGPTLanguageModel
 from training.trainer import Trainer
@@ -61,19 +64,26 @@ def main():
     # ---------------- Device ----------------
 
     device = get_device()
-
+    # Disable AMP if not CUDA
+    if device != "cuda":
+        config["systems"]["amp"] = False
     # ---------------- Output Directory ----------------
 
     output_dir = os.path.join(
         config["logging"]["output_dir"],
         config["experiment"]["name"],
     )
+    results_dir = os.path.join(
+        config["logging"]["results_dir"],
+        config["experiment"]["name"],
+    )
 
+    os.makedirs(results_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
     # ---------------- Logging ----------------
 
-    setup_experiment_logging(output_dir)
+    setup_experiment_logging(results_dir)
 
     print(f"Using device: {device}")
     print(f"Experiment: {config['experiment']['name']}")
@@ -127,16 +137,28 @@ def main():
     )
 
     # ---------------- Training Loop ----------------
-    tokens_processed = 0
-    log_tokens = 0
-    log_start = time.time()
-
     budget = config["training"]["raw_text_budget"]
     max_iters = config["training"].get("max_iters", None)
+    effective_batch_size = (
+        config["training"]["batch_size"]
+        * config["systems"]["gradient_accumulation_steps"]
+    )
 
+    # logging metrics for summary and CSV
+    tokens_processed = 0
+    log_tokens = 0
+    interval_losses = 0.0
+    row = {}
+
+    csv_path = os.path.join(results_dir, "training_metrics.csv")
+
+    global_start_time = time.time()
+    log_start = time.time()
     for step, (x, y) in enumerate(train_loader):
 
+        step_start = time.time()
         loss = trainer.train_step(x, y)
+        step_time = time.time() - step_start
 
         tokens = x.numel()
         tokens_processed += tokens
@@ -144,28 +166,64 @@ def main():
 
         # ----- Logging -----
 
-        if step % config["logging"]["log_interval"] == 0:
+        if step > 0 and step % config["logging"]["log_interval"] == 0:
 
             elapsed = time.time() - log_start
-            tok_per_sec = log_tokens / elapsed
-            progress = tokens_processed / budget * 100
+            tok_per_sec = log_tokens / elapsed if elapsed > 0 else 0
+            progress = (tokens_processed / budget * 100) if budget > 0 else 0
+            interval_losses += loss
+
+            # GPU memory
+            if device == "cuda":
+                gpu_mem = torch.cuda.max_memory_allocated() / 1e6
+            else:
+                gpu_mem = -1
 
             print(
                 f"step {step} | "
                 f"loss {loss:.4f} | "
-                f"{tok_per_sec:.0f} tokens/sec"
+                f"{tok_per_sec:.0f} tokens/sec | "
                 f"{progress:.1f}% complete"
             )
+
+            # Log metrics to CSV
+            row = {
+                "experiment": config["experiment"]["name"],
+                "step": step,
+                "progress_percent": progress,
+                "loss": loss,
+                "tokens_per_sec": tok_per_sec,
+                "step_time_ms": step_time * 1000,
+                "interval_time_sec": elapsed,
+                "avg_step_time_ms": (
+                    elapsed / max(1, config["logging"]["log_interval"])
+                )
+                * 1000,
+                "gpu_memory_mb": gpu_mem,
+                "tokens_processed": tokens_processed,
+                "tokens_per_step": tokens,
+                "effective_batch_size": effective_batch_size,
+                "lr": optimizer.param_groups[0]["lr"],
+            }
+
+            # ---- Save metrics to CSV ----
+            file_exists = os.path.exists(csv_path)
+            with open(csv_path, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=row.keys())
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(row)
+
+            # Reset CUDA memory stats
+            if device == "cuda":
+                torch.cuda.reset_peak_memory_stats()
 
             log_tokens = 0
             log_start = time.time()
 
         # ----- Checkpoint -----
 
-        if (
-            step % config["logging"]["save_checkpoint_interval"] == 0
-            and step > 0
-        ):
+        if step % config["logging"]["save_checkpoint_interval"] == 0 and step > 0:
             ckpt_path = os.path.join(output_dir, f"step_{step}.pt")
             torch.save(model.state_dict(), ckpt_path)
 
@@ -184,6 +242,24 @@ def main():
     model_path = os.path.join(output_dir, "model.pt")
 
     torch.save(model.state_dict(), model_path)
+    total_time = time.time() - global_start_time
+
+    summary = {
+        "experiment": config["experiment"]["name"],
+        "device": device,
+        "final_loss": loss,
+        "avg_tokens_per_sec": tokens_processed / total_time,
+        "total_tokens_processed": tokens_processed,
+        "avg_interval_loss": interval_losses
+        / (step // config["logging"]["log_interval"] + 1),
+        "total_training_time_sec": total_time,
+        "total_steps": step + 1,
+    }
+
+    summary_path = os.path.join(results_dir, "summary.json")
+
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=4)
 
     print(f"\nTraining finished")
     print(f"Model saved to {model_path}")
