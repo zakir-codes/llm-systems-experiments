@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model.transformer_block import Block
-from systems.kv_cache import KVCache
+from inference.kv_cache import KVCache
 
 
 class NanoGPTLanguageModel(nn.Module):

@@ -20,40 +20,14 @@ import time
 import json
 import csv
 import subprocess
-import yaml
 
-
-CONFIG_DIR = "./configs"
-RESULTS_DIR = "results"
-ARTIFACTS_DIR = "artifacts/models"
-
-
-# ---------------- Config Utilities ---------------- #
-
-def get_config_files():
-    return [
-        os.path.join(CONFIG_DIR, f)
-        for f in os.listdir(CONFIG_DIR)
-        if f.endswith(".yaml") and f != "common.yaml"
-    ]
-
-
-def load_config(path):
-    with open(path) as f:
-        return yaml.safe_load(f)
-
-
-# ---------------- Sorting (Pipeline Order) ---------------- #
-
-def sort_configs(config_paths):
-    order = {"training": 0, "finetuning": 1, "inference": 2}
-
-    configs = []
-    for path in config_paths:
-        cfg = load_config(path)
-        configs.append((path, cfg))
-
-    return sorted(configs, key=lambda x: order[x[1]["experiment"]["type"]])
+from utils.config import (
+    get_config_files,
+    load_yaml,
+    sort_configs,
+    RESULTS_DIR,
+    ARTIFACTS_DIR,
+)
 
 
 # ---------------- Dependency Check ---------------- #
@@ -86,7 +60,7 @@ def run_experiment(config_path, cfg):
         cmd = ["python", "-m", "scripts.finetune", "--config", config_path]
 
     elif exp_type == "inference":
-        cmd = ["python", "-m", "scripts.benchmark_inference", "--config", config_path]
+        cmd = ["python", "-m", "scripts.inference_benchmark", "--config", config_path]
 
     else:
         raise ValueError(f"Unknown experiment type: {exp_type}")

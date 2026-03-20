@@ -1,10 +1,10 @@
 experiment:
-  name: kv_cache_inference
+  name: no_kv_cache_inference
   type: inference
-  description: Inference benchmark with KV cache optimization
+  description: Inference benchmark without KV cache optimization
 
 inference:
-  use_kv_cache: true
+  use_kv_cache: false
   model: baseline_training 
   prompt_lengths: [32, 64, 128, 256]
   max_new_tokens: 64
@@ -12,4 +12,4 @@ inference:
   num_warmup: 3
 
 benchmark:
-  output_file: kv_cache_inference.csv
+  output_file: no_kv_cache_inference.csv

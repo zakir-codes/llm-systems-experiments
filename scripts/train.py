@@ -116,7 +116,9 @@ def main():
 
     # Model size
     num_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {num_params/1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params/1e6:.2f}M")
 
     # ---------------- Optimizer ----------------
 
@@ -246,6 +248,8 @@ def main():
 
     summary = {
         "experiment": config["experiment"]["name"],
+        "model_parameters": num_params,
+        "trainable_parameters": trainable_params,
         "device": device,
         "final_loss": loss,
         "avg_tokens_per_sec": tokens_processed / total_time,
