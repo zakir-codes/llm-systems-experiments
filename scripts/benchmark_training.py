@@ -16,7 +16,7 @@ import subprocess
 import yaml
 
 
-CONFIG_DIR = "configs"
+CONFIG_DIR = "./configs"
 RESULTS_DIR = "results"
 OUTPUT_FILE = os.path.join(RESULTS_DIR, "training_benchmark.csv")
 
@@ -35,7 +35,7 @@ def run_experiment(config_path):
     start = time.time()
 
     result = subprocess.run(
-        ["python", "scripts/train.py", "--config", config_path],
+        ["python", "-m", "scripts.train", "--config", config_path],
         capture_output=True,
         text=True,
     )
