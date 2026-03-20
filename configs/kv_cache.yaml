@@ -1,5 +1,7 @@
 experiment:
   name: kv_cache_inference
+  type: inference
 
 inference:
   use_kv_cache: true
+  model: baseline_training 

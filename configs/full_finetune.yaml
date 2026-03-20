@@ -1,0 +1,11 @@
+experiment:
+  name: full_finetuning
+  type: finetuning
+
+finetuning:
+  base_model: baseline_training
+  method: full
+
+training:
+  batch_size: 32
+  learning_rate: 3e-4

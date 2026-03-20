@@ -1,5 +1,5 @@
 experiment:
-  name: baseline
+  name: Common Configuration
   seed: 42
 
 data:
@@ -38,7 +38,8 @@ finetuning:
   method: none
 
 logging:
-  log_interval: 50
+  log_interval: 1
   eval_interval: 500
   save_checkpoint_interval: 1000
   output_dir: artifacts/models
+  results_dir: results

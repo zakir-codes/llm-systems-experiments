@@ -1,5 +1,6 @@
 experiment:
   name: gradient_accumulation
+  type: training
 
 training:
   batch_size: 8

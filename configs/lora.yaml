@@ -1,8 +1,10 @@
 experiment:
   name: lora_finetuning
+  type: finetuning
 
 finetuning:
   method: lora
+  base_model: baseline_training
   r: 8
   alpha: 16
   dropout: 0.05

@@ -1,5 +1,6 @@
 experiment:
   name: amp_training
+  type: training
 
 systems:
   amp: true
