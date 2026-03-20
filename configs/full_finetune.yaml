@@ -1,11 +1,19 @@
 experiment:
   name: full_finetuning
   type: finetuning
+  description: Full parameter finetuning of pre-trained model
 
 finetuning:
-  base_model: baseline_training
   method: full
+  base_model: baseline_training
 
 training:
-  batch_size: 32
-  learning_rate: 3e-4
+  batch_size: 16
+  learning_rate: 1e-5
+  weight_decay: 0.01
+  max_iters: 1000
+  raw_text_budget: 5000000
+
+systems:
+  amp: true
+  gradient_accumulation_steps: 2

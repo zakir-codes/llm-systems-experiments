@@ -1,6 +1,7 @@
 experiment:
   name: lora_finetuning
   type: finetuning
+  description: LoRA parameter-efficient finetuning
 
 finetuning:
   method: lora
@@ -8,3 +9,14 @@ finetuning:
   r: 8
   alpha: 16
   dropout: 0.05
+
+training:
+  batch_size: 32
+  learning_rate: 3e-4
+  weight_decay: 0.01
+  max_iters: 1000
+  raw_text_budget: 5000000
+
+systems:
+  amp: true
+  gradient_accumulation_steps: 1
