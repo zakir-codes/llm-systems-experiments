@@ -34,13 +34,15 @@ class Trainer:
         self.device = device
 
         self.accumulation_steps = accumulation_steps
-        self.use_amp = use_amp
         self.grad_clip = grad_clip
+        
+        # Ensure AMP is only used when CUDA is actually available
+        self.use_amp = use_amp and device == "cuda"
 
         self.step_count = 0
 
         # AMP scaler (only needed on CUDA)
-        if self.use_amp and device == "cuda":
+        if self.use_amp:
             self.scaler = torch.cuda.amp.GradScaler()
         else:
             self.scaler = None
@@ -53,7 +55,7 @@ class Trainer:
         Perform one training step.
 
         Returns:
-            float: training loss
+            float: training loss (original value, not scaled)
         """
 
         self.model.train()
@@ -69,6 +71,9 @@ class Trainer:
 
                 logits, loss = self.model(x, target=target)
 
+                # Store original loss for reporting
+                original_loss = loss.item()
+
                 loss = loss / self.accumulation_steps
 
             self.scaler.scale(loss).backward()
@@ -76,6 +81,9 @@ class Trainer:
         else:
 
             logits, loss = self.model(x, target=target)
+
+            # Store original loss for reporting
+            original_loss = loss.item()
 
             loss = loss / self.accumulation_steps
 
@@ -104,5 +112,8 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-        # Return original loss value
-        return loss.item() * self.accumulation_steps
+            # Reset counter to prevent overflow
+            self.step_count = 0
+
+        # Return original loss value (not scaled)
+        return original_loss

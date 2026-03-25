@@ -66,15 +66,16 @@ class LoRAFeedForward(nn.Module):
         # Original forward
         result = self.original_ff(x)
         
-        # LoRA forward for first linear
+        # LoRA forward - apply only to linear transformations, not activation
+        # First LoRA adapter (input side)
         lora1 = x @ self.lora_A1 @ self.lora_B1 * self.scaling
-        lora1 = F.relu(lora1)
         
-        # LoRA forward for second linear
-        lora2 = lora1 @ self.lora_A2 @ self.lora_B2 * self.scaling
-        lora2 = self.dropout(lora2)
+        # Second LoRA adapter (output side) - apply after activation equivalent
+        # The ReLU is part of original_ff, so we apply second LoRA after that transformation
+        lora_out = F.relu(lora1) @ self.lora_A2 @ self.lora_B2 * self.scaling
+        lora_out = self.dropout(lora_out)
         
-        return result + lora2
+        return result + lora_out
 
 
 def apply_lora_to_model(model, r=8, alpha=16, dropout=0.05):

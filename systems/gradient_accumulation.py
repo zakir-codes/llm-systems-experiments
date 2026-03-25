@@ -18,3 +18,6 @@ class GradientAccumulation:
         if self.step_count % self.accumulation_steps == 0:
             self.optimizer.step()
             self.optimizer.zero_grad()
+            self.step_count = 0
+
+        return loss.item()

@@ -4,6 +4,7 @@ Training script for NanoGPT language model
 
 import argparse
 import csv
+import gc
 import json
 import os
 import random
@@ -56,6 +57,14 @@ def main():
     # ---------------- Load Config ----------------
 
     config = load_config(args.config)
+
+    # Validate dataset file exists
+    dataset_path = config["data"]["dataset_path"]
+    if not os.path.exists(dataset_path):
+        raise FileNotFoundError(
+            f"Dataset file not found: {dataset_path}\n"
+            f"Please ensure the dataset exists before running training."
+        )
 
     # ---------------- Set Seed ----------------
 
@@ -166,6 +175,12 @@ def main():
         tokens_processed += tokens
         log_tokens += tokens
 
+        # Periodic garbage collection to prevent memory buildup
+        if step % 100 == 0:
+            gc.collect()
+            if device == "cuda":
+                torch.cuda.empty_cache()
+
         # ----- Logging -----
 
         if step > 0 and step % config["logging"]["log_interval"] == 0:
@@ -248,8 +263,6 @@ def main():
 
     summary = {
         "experiment": config["experiment"]["name"],
-        "model_parameters": num_params,
-        "trainable_parameters": trainable_params,
         "device": device,
         "final_loss": loss,
         "avg_tokens_per_sec": tokens_processed / total_time,
@@ -258,6 +271,8 @@ def main():
         / (step // config["logging"]["log_interval"] + 1),
         "total_training_time_sec": total_time,
         "total_steps": step + 1,
+        "model_parameters": num_params,
+        "trainable_parameters": trainable_params,
     }
 
     summary_path = os.path.join(results_dir, "summary.json")

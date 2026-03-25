@@ -155,7 +155,8 @@ def main():
                 "final_loss": summary["final_loss"],
                 "total_time_sec": duration,
                 "total_tokens": summary["total_tokens_processed"],
-                "trainable_params": summary.get("trainable_parameters"),
+                "model_parameters": summary.get("model_parameters"),
+                "trainable_parameters": summary.get("trainable_parameters"),
             }
 
             if exp_type == "training":
