@@ -5,6 +5,9 @@ import torch
 class MixedPrecision:
     """Mixed Precision Training Utility"""
     def __init__(self, model, optimizer, device):
+        if device != "cuda":
+            raise ValueError("Mixed precision training requires CUDA device")
+        
         self.model = model
         self.optimizer = optimizer
         self.device = device
@@ -14,8 +17,10 @@ class MixedPrecision:
         """Perform a single training step with mixed precision"""
         self.optimizer.zero_grad()
         with torch.cuda.amp.autocast():
-            output, loss = self.model(x, target)
+            logits, loss = self.model(x, target=target)
+        
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
-        return output, loss
+        
+        return loss.item()

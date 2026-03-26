@@ -3,6 +3,9 @@
 class GradientAccumulation:
     """Utility for Gradient Accumulation"""
     def __init__(self, model, optimizer, accumulation_steps):
+        if accumulation_steps < 1:
+            raise ValueError("accumulation_steps must be >= 1")
+        
         self.model = model
         self.optimizer = optimizer
         self.accumulation_steps = accumulation_steps
