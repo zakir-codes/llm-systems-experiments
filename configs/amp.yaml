@@ -3,4 +3,4 @@ experiment:
   type: training
 
 systems:
-  amp: true
+  training_system: "mixed_precision"

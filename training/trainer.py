@@ -1,23 +1,21 @@
 """
 Trainer Implementation
 
-Supports:
-- Standard training
-- Mixed Precision (AMP)
-- Gradient Accumulation
+Simplified trainer that delegates all training logic to a specific training system.
 """
 
 import torch
+import logging
 
 
 class Trainer:
     """
-    Trainer class responsible for performing training steps.
-
+    Simplified trainer class that delegates training steps to a specified system.
+    
     Features:
-    - AMP training
-    - Gradient accumulation
-    - Gradient clipping
+    - Config-driven system selection
+    - No fallback logic
+    - Clean separation of concerns
     """
 
     def __init__(
@@ -25,95 +23,20 @@ class Trainer:
         model,
         optimizer,
         device,
-        accumulation_steps=1,
-        use_amp=False,
-        grad_clip=1.0,
+        training_system,
     ):
         self.model = model
         self.optimizer = optimizer
         self.device = device
-
-        self.accumulation_steps = accumulation_steps
-        self.grad_clip = grad_clip
+        self.training_system = training_system
         
-        # Ensure AMP is only used when CUDA is actually available
-        self.use_amp = use_amp and device == "cuda"
-
-        self.step_count = 0
-
-        # AMP scaler (only needed on CUDA)
-        if self.use_amp:
-            self.scaler = torch.cuda.amp.GradScaler()
-        else:
-            self.scaler = None
-
-        # Initialize gradients
-        self.optimizer.zero_grad()
+        logging.info(f"Trainer initialized with system: {type(training_system).__name__}")
 
     def train_step(self, x, target):
         """
-        Perform one training step.
+        Perform one training step by delegating to the training system.
 
         Returns:
-            float: training loss (original value, not scaled)
+            float: training loss
         """
-
-        self.model.train()
-
-        x = x.to(self.device)
-        target = target.to(self.device)
-
-        # ---------------- Forward Pass ----------------
-
-        if self.use_amp and self.scaler is not None:
-
-            with torch.cuda.amp.autocast():
-
-                logits, loss = self.model(x, target=target)
-
-                # Store original loss for reporting
-                original_loss = loss.item()
-
-                loss = loss / self.accumulation_steps
-
-            self.scaler.scale(loss).backward()
-
-        else:
-
-            logits, loss = self.model(x, target=target)
-
-            # Store original loss for reporting
-            original_loss = loss.item()
-
-            loss = loss / self.accumulation_steps
-
-            loss.backward()
-
-        # ---------------- Gradient Accumulation ----------------
-
-        self.step_count += 1
-
-        if self.step_count % self.accumulation_steps == 0:
-
-            # Gradient clipping (important for stability)
-            torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(),
-                self.grad_clip
-            )
-
-            if self.use_amp and self.scaler is not None:
-
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-
-            else:
-
-                self.optimizer.step()
-
-            self.optimizer.zero_grad()
-
-            # Reset counter to prevent overflow
-            self.step_count = 0
-
-        # Return original loss value (not scaled)
-        return original_loss
+        return self.training_system.train_step(x, target)

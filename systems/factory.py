@@ -1,8 +1,10 @@
 """Factory for creating system optimization modules"""
 
 import logging
+from .normal_training import NormalTraining
 from .mixed_precision import MixedPrecision
 from .gradient_accumulation import GradientAccumulation
+from .combined_training import CombinedTraining
 
 logger = logging.getLogger(__name__)
 
@@ -11,47 +13,51 @@ class SystemsFactory:
     """Factory for creating training optimization systems"""
     
     @staticmethod
-    def create_mixed_precision(model, optimizer, device):
-        """Create mixed precision system if device supports it"""
-        try:
-            if device == "cuda":
-                return MixedPrecision(model, optimizer, device)
-            else:
-                logger.info(f"Mixed precision disabled: device {device} is not CUDA")
-                return None
-        except Exception as e:
-            logger.error(f"Failed to create mixed precision system: {e}")
-            return None
-    
-    @staticmethod
-    def create_gradient_accumulation(model, optimizer, accumulation_steps):
-        """Create gradient accumulation system if enabled"""
-        try:
-            if accumulation_steps > 1:
-                return GradientAccumulation(model, optimizer, accumulation_steps)
-            else:
-                logger.info(f"Gradient accumulation disabled: steps={accumulation_steps}")
-                return None
-        except Exception as e:
-            logger.error(f"Failed to create gradient accumulation system: {e}")
-            return None
-    
-    @staticmethod
-    def create_systems(model, optimizer, device, use_amp=False, accumulation_steps=1):
-        """Create all requested systems with proper error handling"""
-        systems = {}
+    def create_training_system(system_name, model, optimizer, device, **kwargs):
+        """Create training system based on config specification"""
         
-        # Create mixed precision system
-        if use_amp:
-            systems["mixed_precision"] = SystemsFactory.create_mixed_precision(
-                model, optimizer, device
+        if system_name == "normal":
+            return NormalTraining(
+                model, optimizer, device, 
+                grad_clip=kwargs.get("grad_clip", 1.0)
             )
         
-        # Create gradient accumulation system
-        if accumulation_steps > 1:
-            systems["gradient_accumulation"] = SystemsFactory.create_gradient_accumulation(
-                model, optimizer, accumulation_steps
+        elif system_name == "mixed_precision":
+            return MixedPrecision(model, optimizer, device)
+        
+        elif system_name == "gradient_accumulation":
+            return GradientAccumulation(
+                model, optimizer, 
+                kwargs.get("accumulation_steps", 1)
             )
         
-        logger.info(f"Created systems: {list(systems.keys())}")
-        return systems
+        elif system_name == "combined":
+            return CombinedTraining(
+                model, optimizer, device,
+                accumulation_steps=kwargs.get("accumulation_steps", 4),
+                grad_clip=kwargs.get("grad_clip", 1.0)
+            )
+        
+        else:
+            raise ValueError(f"Unknown training system: {system_name}")
+    
+    @staticmethod
+    def create_from_config(config, model, optimizer, device):
+        """Create training system from full config"""
+        systems_config = config.get("systems", {})
+        system_name = systems_config.get("training_system", "normal")
+        
+        # Extract system-specific parameters
+        kwargs = {}
+        
+        if system_name in ["gradient_accumulation", "combined"]:
+            grad_config = systems_config.get("gradient_accumulation", {})
+            kwargs["accumulation_steps"] = grad_config.get("steps", 4)
+        
+        if system_name in ["normal", "combined"]:
+            kwargs["grad_clip"] = systems_config.get("grad_clip", 1.0)
+        
+        logger.info(f"Creating training system: {system_name}")
+        return SystemsFactory.create_training_system(
+            system_name, model, optimizer, device, **kwargs
+        )

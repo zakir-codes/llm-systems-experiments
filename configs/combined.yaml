@@ -1,0 +1,12 @@
+experiment:
+  name: combined_training
+  type: training
+  description: Combined mixed precision and gradient accumulation training
+
+training:
+  batch_size: 16
+
+systems:
+  training_system: "combined"
+  gradient_accumulation:
+    steps: 4

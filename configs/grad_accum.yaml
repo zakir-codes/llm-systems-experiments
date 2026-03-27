@@ -6,4 +6,6 @@ training:
   batch_size: 8
 
 systems:
-  gradient_accumulation_steps: 4
+  training_system: "gradient_accumulation"
+  gradient_accumulation:
+    steps: 4

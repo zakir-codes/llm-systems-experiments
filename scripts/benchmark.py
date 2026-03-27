@@ -10,6 +10,8 @@ Supports:
 - inference (KV cache vs no cache)
 
 Outputs:
+- results/<experiment_name>/summary.json
+- results/<experiment_name>/*.csv
 - results/training_benchmark.csv
 - results/finetuning_benchmark.csv
 - results/inference_benchmark.csv

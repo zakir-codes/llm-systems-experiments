@@ -2,4 +2,8 @@ experiment:
   name: baseline_training
   type: training
   description: Standard GPT training without system optimizations
+
+systems:
+  training_system: "normal"
+  grad_clip: 1.0
   
