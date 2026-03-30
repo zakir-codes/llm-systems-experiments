@@ -79,11 +79,11 @@ def main():
     # ---------------- Output Directory ----------------
 
     output_dir = os.path.join(
-        config["logging"]["output_dir"],
+        config["logging"]["output_dir"],config["type"],
         config["experiment"]["name"],
     )
     results_dir = os.path.join(
-        config["logging"]["results_dir"],
+        config["logging"]["results_dir"],config["type"],
         config["experiment"]["name"],
     )
 
