@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import logging
 
 from model.transformer_block import Block
 from inference.kv_cache import KVCache
@@ -63,22 +64,42 @@ class NanoGPTLanguageModel(nn.Module):
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, kv_cache=None):
-
-        if kv_cache is None:
-            kv_cache = KVCache()
-
-        for _ in range(max_new_tokens):
-
-            if kv_cache.cache == {}:
-                idx_cond = idx[:, -self.block_size :]
-            else:
-                idx_cond = idx[:, -1:]
-
-            logits, _ = self(idx_cond, kv_cache=kv_cache)
-
-            probs = torch.softmax(logits[:, -1, :], dim=-1)
-            next_token = torch.multinomial(probs, 1)
-
-            idx = torch.cat((idx, next_token), dim=1)
-
+        """
+        Generate new tokens using the model.
+        
+        Args:
+            idx: Input token indices [batch_size, seq_len]
+            max_new_tokens: Number of new tokens to generate
+            kv_cache: KVCache instance for optimization (optional)
+            
+        Returns:
+            Generated token indices [batch_size, seq_len + max_new_tokens]
+        """
+        if max_new_tokens <= 0:
+            return idx
+        
+        try:
+            for _ in range(max_new_tokens):
+                # Determine context for forward pass
+                if kv_cache is not None and not kv_cache.is_empty():
+                    # Use KV cache: only need last token
+                    idx_cond = idx[:, -1:]
+                else:
+                    # No cache: use full context (limited by block_size)
+                    idx_cond = idx[:, -self.block_size:]
+                
+                # Forward pass
+                logits, _ = self(idx_cond, kv_cache=kv_cache)
+                
+                # Sample next token
+                probs = torch.softmax(logits[:, -1, :], dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+                
+                # Append to sequence
+                idx = torch.cat((idx, next_token), dim=1)
+                
+        except Exception as e:
+            logging.error(f"Error during generation: {e}")
+            raise RuntimeError(f"Generation failed: {e}") from e
+        
         return idx

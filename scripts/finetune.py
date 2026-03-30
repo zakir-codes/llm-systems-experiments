@@ -15,8 +15,8 @@ import yaml
 import numpy as np
 
 from model.gpt_model import NanoGPTLanguageModel
+from systems.factory import SystemsFactory
 from training.trainer import Trainer
-from utils import config
 from utils.dataset import get_dataloader
 from utils.config import load_config
 from utils.logging import setup_experiment_logging
@@ -195,20 +195,32 @@ def main():
 
     # ---------------- Trainer ----------------
 
+    
+    # Create training system from config
+    training_system = SystemsFactory.create_from_config(config, model, optimizer, device)
+
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
         device=device,
-        accumulation_steps=config["systems"]["gradient_accumulation_steps"],
-        use_amp=config["systems"]["amp"],
+        training_system=training_system,
     )
 
     # ---------------- Finetuning Loop ----------------
     budget = config["training"]["raw_text_budget"]
     max_iters = config["training"].get("max_iters", None)
+    
+    # Calculate effective batch size based on training system
+    systems_config = config["systems"]
+    training_system = systems_config.get("training_system", "normal")
+    
+    if training_system in ["gradient_accumulation", "combined"]:
+        accumulation_steps = systems_config.get("gradient_accumulation", {}).get("steps", 1)
+    else:
+        accumulation_steps = 1
+    
     effective_batch_size = (
-        config["training"]["batch_size"]
-        * config["systems"]["gradient_accumulation_steps"]
+        config["training"]["batch_size"] * accumulation_steps
     )
 
     # logging metrics for summary and CSV
