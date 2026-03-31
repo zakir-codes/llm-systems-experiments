@@ -5,6 +5,7 @@ Supports both full finetuning and LoRA finetuning
 
 import argparse
 import csv
+import copy
 import json
 import os
 import random
@@ -20,7 +21,16 @@ from training.trainer import Trainer
 from utils.dataset import get_dataloader
 from utils.config import load_config
 from utils.logging import setup_experiment_logging
-from finetuning.lora import apply_lora_to_model, get_lora_parameters, count_lora_parameters, count_total_parameters, save_lora_weights
+from finetuning.lora import (
+    LoRAConfig, 
+    apply_lora_to_model, 
+    get_lora_parameters, 
+    count_lora_parameters, 
+    count_total_parameters, 
+    save_lora_weights,
+    merge_lora_weights,
+    print_lora_model_info
+)
 from finetuning.full_finetune import prepare_model_for_full_finetuning, count_trainable_parameters, count_total_parameters as count_total_params_full, save_full_model
 
 
@@ -140,22 +150,21 @@ def main():
     # ---------------- Apply Finetuning Method ----------------
 
     if finetune_config["method"] == "lora":
-        # Apply LoRA adapters
-        lora_config = finetune_config
-        model = apply_lora_to_model(
-            model, 
-            r=lora_config.get("r", 8),
-            alpha=lora_config.get("alpha", 16),
-            dropout=lora_config.get("dropout", 0.05)
+        # Create LoRA config
+        lora_config = LoRAConfig(
+            r=finetune_config.get("r", 8),
+            alpha=finetune_config.get("alpha", 16),
+            dropout=finetune_config.get("dropout", 0.05)
         )
+        
+        # Apply LoRA adapters
+        model = apply_lora_to_model(model, lora_config)
         
         # Count parameters
         total_params = count_total_parameters(model)
         lora_params = count_lora_parameters(model)
         
-        print(f"Total model parameters: {total_params/1e6:.2f}M")
-        print(f"LoRA trainable parameters: {lora_params/1e6:.2f}M")
-        print(f"LoRA parameter ratio: {lora_params/total_params*100:.2f}%")
+        print_lora_model_info(model)
         
         # Get only LoRA parameters for optimizer
         trainable_params = get_lora_parameters(model)
@@ -212,12 +221,9 @@ def main():
     
     # Calculate effective batch size based on training system
     systems_config = config["systems"]
-    training_system = systems_config.get("training_system", "normal")
     
-    if training_system in ["gradient_accumulation", "combined"]:
-        accumulation_steps = systems_config.get("gradient_accumulation", {}).get("steps", 1)
-    else:
-        accumulation_steps = 1
+    # Fix: Use flat config structure to match factory.py expectations
+    accumulation_steps = systems_config.get("gradient_accumulation_steps", 1)
     
     effective_batch_size = (
         config["training"]["batch_size"] * accumulation_steps
@@ -308,9 +314,9 @@ def main():
 
         if step % config["logging"]["save_checkpoint_interval"] == 0 and step > 0:
             if finetune_config["method"] == "lora":
-                # Save only LoRA weights
+                # Save only LoRA weights with config
                 ckpt_path = os.path.join(output_dir, f"step_{step}_lora.pt")
-                save_lora_weights(model, ckpt_path)
+                save_lora_weights(model, ckpt_path, lora_config)
             else:
                 # Save full model
                 ckpt_path = os.path.join(output_dir, f"step_{step}.pt")
@@ -330,7 +336,12 @@ def main():
 
     if finetune_config["method"] == "lora":
         model_path = os.path.join(output_dir, "lora_weights.pt")
-        save_lora_weights(model, model_path)
+        save_lora_weights(model, model_path, lora_config)
+        
+        # Also save merged model for inference
+        merged_model = merge_lora_weights(copy.deepcopy(model))
+        merged_path = os.path.join(output_dir, "merged_model.pt")
+        save_full_model(merged_model, merged_path)
     else:
         model_path = os.path.join(output_dir, "model.pt")
         save_full_model(model, model_path)
@@ -342,7 +353,7 @@ def main():
         "method": finetune_config["method"],
         "base_model": base_model_name,
         "total_parameters": total_params,
-        "trainable_parameters": trainable_params.numel() if finetune_config["method"] == "lora" else trainable_params,
+        "trainable_parameters": sum(p.numel() for p in trainable_params) if finetune_config["method"] == "lora" else count_trainable_parameters(model),
         "device": device,
         "final_loss": loss,
         "avg_tokens_per_sec": tokens_processed / total_time,

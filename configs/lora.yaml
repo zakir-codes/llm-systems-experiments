@@ -18,5 +18,6 @@ training:
   raw_text_budget: 5000000
 
 systems:
+  training_system: "normal"
   amp: true
   gradient_accumulation_steps: 1
